@@ -53,6 +53,7 @@ QHash<int, QByteArray> AttributeFormModelBase::roleNames() const
   roles[AttributeFormModel::ConstraintSoftValid] = "ConstraintSoftValid";
   roles[AttributeFormModel::ConstraintDescription] = "ConstraintDescription";
   roles[AttributeFormModel::AttributeAllowEdit] = "AttributeAllowEdit";
+  roles[AttributeFormModel::QmlCode] = "QmlCode";
 
   return roles;
 }
@@ -239,6 +240,72 @@ void AttributeFormModelBase::updateAttributeValue( QStandardItem *item )
     //set item visibility to false in case it's a linked attribute
     item->setData( !mFeatureModel->data( mFeatureModel->index( fieldIndex ), FeatureModel::LinkedAttribute ).toBool(), AttributeFormModel::CurrentlyVisible );
   }
+  else if ( item->data( AttributeFormModel::ElementType ) == QStringLiteral( "qml" ) )
+  {
+    QString qmlCode = mQmlCodes[item];
+    int openPos = qmlCode.indexOf( QStringLiteral( "expression.evaluate(" ), 0, Qt::CaseInsensitive );
+    int lastPos = openPos + 20;
+    int subBrackets = 0;
+    while( openPos != -1 )
+    {
+      int closePos = qmlCode.indexOf( ')', lastPos );
+      if ( closePos == -1 )
+        break;
+
+      int tmp = qmlCode.indexOf( '(', lastPos );
+      if ( tmp == -1 || closePos < tmp )
+      {
+        if ( subBrackets != 0 )
+        {
+          // closing a sub-bracket
+          subBrackets--;
+          lastPos = closePos;
+        }
+        else
+        {
+          QString expression = qmlCode.mid( openPos + 20, closePos - openPos - 20 ).trimmed();
+          expression = expression.mid( 1, expression.length() - 2 );
+          expression = expression.replace( QStringLiteral( "\\\"" ), QStringLiteral( "\"" ) );
+
+          QgsExpressionContext expressionContext = mLayer->createExpressionContext();
+          expressionContext.setFeature( mFeatureModel->feature() );
+
+          QgsExpression exp = QgsExpression( expression );
+          exp.prepare( &expressionContext );
+          QVariant result = exp.evaluate( &expressionContext );
+
+          QString resultString;
+          switch( result.type() )
+          {
+            case QMetaType::Int:
+            case QMetaType::UInt:
+            case QMetaType::Double:
+            case QMetaType::LongLong:
+            case QMetaType::ULongLong:
+              resultString = result.toString();
+              break;
+            case QMetaType::Bool:
+              resultString = result.toBool() ? QStringLiteral( "true" ) : QStringLiteral( "false" );
+              break;
+            default:
+              resultString = QStringLiteral( "'%1'" ).arg( result.toString() );
+              break;
+          }
+
+          qmlCode = qmlCode.mid( 0, openPos ) + resultString + qmlCode.mid( closePos + 1);
+          openPos = qmlCode.indexOf( QStringLiteral( "expression.evaluate(" ), 0, Qt::CaseInsensitive );
+          lastPos = openPos + 20;
+        }
+      }
+      else
+      {
+        // opening a sub-bracket
+        subBrackets++;
+        lastPos = tmp;
+      }
+    }
+    item->setData( qmlCode, AttributeFormModel::QmlCode );
+  }
   else
   {
     for ( int i = 0; i < item->rowCount(); ++i )
@@ -358,11 +425,26 @@ void AttributeFormModelBase::flatten( QgsAttributeEditorContainer *container, QS
         break;
       }
 
-      case QgsAttributeEditorElement::AeTypeInvalid:
-        // todo
-        break;
-
       case QgsAttributeEditorElement::AeTypeQmlElement:
+      {
+        QgsAttributeEditorQmlElement *qmlElement = static_cast<QgsAttributeEditorQmlElement *>( element );
+        QStandardItem *item = new QStandardItem();
+
+        item->setData( "qml", AttributeFormModel::ElementType );
+        item->setData( qmlElement->name(), AttributeFormModel::Name );
+        item->setData( qmlElement->qmlCode(), AttributeFormModel::QmlCode );
+        item->setData( true, AttributeFormModel::CurrentlyVisible );
+        item->setData( false, AttributeFormModel::AttributeEditable );
+        item->setData( container->isGroupBox() ? container->name() : QString(), AttributeFormModel::Group );
+
+        mQmlCodes.insert( item, qmlElement->qmlCode() );
+
+        items.append( item );
+        parent->appendRow( item );
+        break;
+      }
+
+      case QgsAttributeEditorElement::AeTypeInvalid:
         // todo
         break;
     }
