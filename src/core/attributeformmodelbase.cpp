@@ -53,7 +53,7 @@ QHash<int, QByteArray> AttributeFormModelBase::roleNames() const
   roles[AttributeFormModel::ConstraintSoftValid] = "ConstraintSoftValid";
   roles[AttributeFormModel::ConstraintDescription] = "ConstraintDescription";
   roles[AttributeFormModel::AttributeAllowEdit] = "AttributeAllowEdit";
-  roles[AttributeFormModel::QmlCode] = "QmlCode";
+  roles[AttributeFormModel::EditorWidgetCode] = "EditorWidgetCode";
 
   return roles;
 }
@@ -242,7 +242,7 @@ void AttributeFormModelBase::updateAttributeValue( QStandardItem *item )
   }
   else if ( item->data( AttributeFormModel::ElementType ) == QStringLiteral( "qml" ) )
   {
-    QString qmlCode = mQmlCodes[item];
+    QString qmlCode = mEditorWidgetCodes[item];
     int openPos = qmlCode.indexOf( QStringLiteral( "expression.evaluate(" ), 0, Qt::CaseInsensitive );
     int currentPos = openPos + 20;
     int subBrackets = 0;
@@ -304,7 +304,7 @@ void AttributeFormModelBase::updateAttributeValue( QStandardItem *item )
         currentPos = pos;
       }
     }
-    item->setData( qmlCode, AttributeFormModel::QmlCode );
+    item->setData( qmlCode, AttributeFormModel::EditorWidgetCode );
   }
   else
   {
@@ -432,17 +432,21 @@ void AttributeFormModelBase::flatten( QgsAttributeEditorContainer *container, QS
 
         item->setData( "qml", AttributeFormModel::ElementType );
         item->setData( qmlElement->name(), AttributeFormModel::Name );
-        item->setData( qmlElement->qmlCode(), AttributeFormModel::QmlCode );
+        item->setData( qmlElement->qmlCode(), AttributeFormModel::EditorWidgetCode );
         item->setData( true, AttributeFormModel::CurrentlyVisible );
         item->setData( false, AttributeFormModel::AttributeEditable );
         item->setData( container->isGroupBox() ? container->name() : QString(), AttributeFormModel::Group );
 
-        mQmlCodes.insert( item, qmlElement->qmlCode() );
+        mEditorWidgetCodes.insert( item, qmlElement->qmlCode() );
 
         items.append( item );
         parent->appendRow( item );
         break;
       }
+
+      case QgsAttributeEditorElement::AeTypeHtmlElement:
+        // todo
+        break;
 
       case QgsAttributeEditorElement::AeTypeInvalid:
         // todo

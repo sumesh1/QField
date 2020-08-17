@@ -218,7 +218,7 @@ Page {
       }
 
       Item {
-        property string qmlCode: QmlCode
+        property string qmlCode: EditorWidgetCode
 
         id: qmlContainer
         visible: Type == 'qml' && form.model.featureModel.modelMode != FeatureModel.MultiFeatureModel
