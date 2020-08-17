@@ -243,67 +243,42 @@ void AttributeFormModelBase::updateAttributeValue( QStandardItem *item )
   else if ( item->data( AttributeFormModel::ElementType ) == QStringLiteral( "qml" ) )
   {
     QString qmlCode = mEditorWidgetCodes[item];
-    int openPos = qmlCode.indexOf( QStringLiteral( "expression.evaluate(" ), 0, Qt::CaseInsensitive );
-    int currentPos = openPos + 20;
-    int subBrackets = 0;
-    while( openPos != -1 )
+
+    QRegularExpression re( "expression\\.evaluate\\(\\s*\\\"(.*?[^\\\\])\\\"\\s*\\)" );
+    QRegularExpressionMatch match = re.match( qmlCode );
+    while( match.hasMatch() )
     {
-      int closePos = qmlCode.indexOf( ')', currentPos );
-      if ( closePos == -1 )
-        break;
+      QString expression = match.captured( 1 );
+      expression = expression.replace( QStringLiteral( "\\\"" ), QStringLiteral( "\"" ) );
 
-      int pos = qmlCode.indexOf( '(', currentPos );
-      if ( pos == -1 || closePos < pos )
+      QgsExpressionContext expressionContext = mLayer->createExpressionContext();
+      expressionContext.setFeature( mFeatureModel->feature() );
+
+      QgsExpression exp = QgsExpression( expression );
+      exp.prepare( &expressionContext );
+      QVariant result = exp.evaluate( &expressionContext );
+
+      QString resultString;
+      switch( result.type() )
       {
-        if ( subBrackets != 0 )
-        {
-          // closing a sub-bracket
-          subBrackets--;
-          currentPos = closePos;
-        }
-        else
-        {
-          QString expression = qmlCode.mid( openPos + 20, closePos - openPos - 20 ).trimmed();
-          expression = expression.mid( 1, expression.length() - 2 );
-          expression = expression.replace( QStringLiteral( "\\\"" ), QStringLiteral( "\"" ) );
-
-          QgsExpressionContext expressionContext = mLayer->createExpressionContext();
-          expressionContext.setFeature( mFeatureModel->feature() );
-
-          QgsExpression exp = QgsExpression( expression );
-          exp.prepare( &expressionContext );
-          QVariant result = exp.evaluate( &expressionContext );
-
-          QString resultString;
-          switch( result.type() )
-          {
-            case QMetaType::Int:
-            case QMetaType::UInt:
-            case QMetaType::Double:
-            case QMetaType::LongLong:
-            case QMetaType::ULongLong:
-              resultString = result.toString();
-              break;
-            case QMetaType::Bool:
-              resultString = result.toBool() ? QStringLiteral( "true" ) : QStringLiteral( "false" );
-              break;
-            default:
-              resultString = QStringLiteral( "'%1'" ).arg( result.toString() );
-              break;
-          }
-
-          qmlCode = qmlCode.mid( 0, openPos ) + resultString + qmlCode.mid( closePos + 1);
-          openPos = qmlCode.indexOf( QStringLiteral( "expression.evaluate(" ), 0, Qt::CaseInsensitive );
-          currentPos = openPos + 20;
-        }
+        case QMetaType::Int:
+        case QMetaType::UInt:
+        case QMetaType::Double:
+        case QMetaType::LongLong:
+        case QMetaType::ULongLong:
+          resultString = result.toString();
+          break;
+        case QMetaType::Bool:
+          resultString = result.toBool() ? QStringLiteral( "true" ) : QStringLiteral( "false" );
+          break;
+        default:
+          resultString = QStringLiteral( "'%1'" ).arg( result.toString() );
+          break;
       }
-      else
-      {
-        // opening a sub-bracket
-        subBrackets++;
-        currentPos = pos;
-      }
+      qmlCode = qmlCode.mid( 0, match.capturedStart( 0 ) ) + resultString + qmlCode.mid( match.capturedEnd( 0 ) );
+      match = re.match( qmlCode );
     }
+
     item->setData( qmlCode, AttributeFormModel::EditorWidgetCode );
   }
   else
