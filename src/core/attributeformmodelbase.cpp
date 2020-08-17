@@ -244,22 +244,22 @@ void AttributeFormModelBase::updateAttributeValue( QStandardItem *item )
   {
     QString qmlCode = mQmlCodes[item];
     int openPos = qmlCode.indexOf( QStringLiteral( "expression.evaluate(" ), 0, Qt::CaseInsensitive );
-    int lastPos = openPos + 20;
+    int currentPos = openPos + 20;
     int subBrackets = 0;
     while( openPos != -1 )
     {
-      int closePos = qmlCode.indexOf( ')', lastPos );
+      int closePos = qmlCode.indexOf( ')', currentPos );
       if ( closePos == -1 )
         break;
 
-      int tmp = qmlCode.indexOf( '(', lastPos );
-      if ( tmp == -1 || closePos < tmp )
+      int pos = qmlCode.indexOf( '(', currentPos );
+      if ( pos == -1 || closePos < pos )
       {
         if ( subBrackets != 0 )
         {
           // closing a sub-bracket
           subBrackets--;
-          lastPos = closePos;
+          currentPos = closePos;
         }
         else
         {
@@ -294,14 +294,14 @@ void AttributeFormModelBase::updateAttributeValue( QStandardItem *item )
 
           qmlCode = qmlCode.mid( 0, openPos ) + resultString + qmlCode.mid( closePos + 1);
           openPos = qmlCode.indexOf( QStringLiteral( "expression.evaluate(" ), 0, Qt::CaseInsensitive );
-          lastPos = openPos + 20;
+          currentPos = openPos + 20;
         }
       }
       else
       {
         // opening a sub-bracket
         subBrackets++;
-        lastPos = tmp;
+        currentPos = pos;
       }
     }
     item->setData( qmlCode, AttributeFormModel::QmlCode );
