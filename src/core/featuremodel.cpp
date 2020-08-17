@@ -49,7 +49,7 @@ FeatureModel::ModelModes FeatureModel::modelMode() const
 
 void FeatureModel::setFeature( const QgsFeature &feature )
 {
-  if ( mModelMode != SingleFeatureModel || mFeature == feature )
+  if ( mModelMode != SingleFeatureModel )
     return;
 
   beginResetModel();
